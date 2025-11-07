@@ -57,6 +57,11 @@ taxes_calib = {         # benchmark tax to calibrate on
     'tau_inher_L':      0.0,
     'tau_inher_l':      0.0,
     'tau_inher_LR':     0.0,
+    'tau_c':            0.0,
+    'tau_ch':           0.0,
+    'tau_C':            0.0,
+    'tau_CH':           0.0,
+    'tau_CR':           0.0,
 }
 
 # the all tax set to zero case
