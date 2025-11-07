@@ -1,7 +1,18 @@
-import numpy as np 
-import matplotlib.pyplot as plt
 import json
+import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import numpy as np
+
+try:  # pragma: no cover - fallback for direct execution
+    from .paths import DYNAMICS_DIR
+except ImportError:  # pragma: no cover
+    import sys
+    from pathlib import Path
+
+    PACKAGE_ROOT = Path(__file__).resolve().parent
+    sys.path.insert(0, str(PACKAGE_ROOT.parent))
+
+    from land_tax.paths import DYNAMICS_DIR  # type: ignore
 
 
 #######################################################
@@ -123,9 +134,9 @@ def plot_dynamics(ax, exprmt, init_ss, tax_rate_id, lab, ls, col=None):
 #######################################################
 
 # Experiment 1
-exprmt1 = np.loadtxt(open("dynamics/exprmt1_PF.csv", "rb"), delimiter=",")
+exprmt1 = np.loadtxt(DYNAMICS_DIR / "exprmt1_PF.csv", delimiter=",")
 
-with open('dynamics/exprmt1_terminal.json') as file:
+with open(DYNAMICS_DIR / 'exprmt1_terminal.json') as file:
     init_ss_exprmt1 = json.load(file)       # terminal is the steady state capital stock (init is the shocked K)
 
 fig, ax = plt.subplots(5, 5, figsize=[15, 9], dpi=200, sharex=True)
@@ -181,10 +192,10 @@ tax_ids = [
 ]
 
 for i in range(2, 13):
-    exprmt_PF = np.loadtxt(open(f"dynamics/exprmt{i}_PF.csv", "rb"), delimiter=",")
-    exprmt_MIT = np.loadtxt(open(f"dynamics/exprmt{i}_MIT.csv", "rb"), delimiter=",")
+    exprmt_PF = np.loadtxt(DYNAMICS_DIR / f"exprmt{i}_PF.csv", delimiter=",")
+    exprmt_MIT = np.loadtxt(DYNAMICS_DIR / f"exprmt{i}_MIT.csv", delimiter=",")
     
-    with open(f'dynamics/exprmt{i}_init.json') as file:
+    with open(DYNAMICS_DIR / f'exprmt{i}_init.json') as file:
         init_ss_exprmt = json.load(file)
 
     tax_id = tax_ids[i-2]

@@ -1,15 +1,25 @@
 # %%
-from model_solver import *
-import numpy as np 
-import pandas as pd
-import matplotlib.pyplot as plt 
+from pathlib import Path
+import sys
 import json
 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Rectangle
 
 import matplotlib as mpl
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from land_tax.model_solver import *  # noqa: E402,F401,F403
+from land_tax.paths import PARAMS_DIR, SOLUTIONS_DIR  # noqa: E402
+
+PARAMS_DIR.mkdir(parents=True, exist_ok=True)
+SOLUTIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
@@ -168,13 +178,13 @@ print(latex_table(sol_calib, sol_taxeq0, targets))
 
 
 # store outcomes
-with open('ParamEndog_uncons_calib.json', 'w') as file:
+with open(PARAMS_DIR / 'ParamEndog_uncons_calib.json', 'w') as file:
     json.dump(params_endog1, file)
 
-with open('sol_uncons_calib.json', 'w') as js:
+with open(SOLUTIONS_DIR / 'sol_uncons_calib.json', 'w') as js:
     json.dump(sol_calib, js)
 
-with open('sol_uncons_taxeq0.json', 'w') as js:
+with open(SOLUTIONS_DIR / 'sol_uncons_taxeq0.json', 'w') as js:
     json.dump(sol_taxeq0, js)
     
 
@@ -735,7 +745,7 @@ sol_taxeq0_neq0 = solve_ss(params_exog_neq0, params_endog1, taxes_eq0, init_gues
 NatIncome_taxeq0_neq0 = sol_taxeq0_neq0['NatIncome_prod']
 welfare_taxeq0_neq0   = sol_taxeq0_neq0['welfare']
 
-with open('sol_uncons_taxeq0_neq0.json', 'w') as js:
+with open(SOLUTIONS_DIR / 'sol_uncons_taxeq0_neq0.json', 'w') as js:
     json.dump(sol_taxeq0_neq0, js)
 
 sol_calib_neq0 = solve_ss(params_exog_neq0, params_endog1, taxes_calib, init_guess)
@@ -1003,13 +1013,13 @@ print(latex_table(sol_calib_cons, sol_taxeq0_cons, targets))
 
 
 # store outcomes
-with open('ParamEndog_cons_calib.json', 'w') as file:
+with open(PARAMS_DIR / 'ParamEndog_cons_calib.json', 'w') as file:
     json.dump(params_endog_cons, file)
 
-with open('sol_cons_calib.json', 'w') as js:
+with open(SOLUTIONS_DIR / 'sol_cons_calib.json', 'w') as js:
     json.dump(sol_calib_cons, js)
 
-with open('sol_cons_taxeq0.json', 'w') as js:
+with open(SOLUTIONS_DIR / 'sol_cons_taxeq0.json', 'w') as js:
     json.dump(sol_taxeq0_cons, js)
     
     
