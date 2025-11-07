@@ -352,6 +352,11 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
     tau_LR_sale      = taxes['tau_LR_sale']
     tau_H            = taxes['tau_H']
     tau_HI           = taxes['tau_HI']
+    tau_c            = taxes.get('tau_c', 0.0)
+    tau_ch           = taxes.get('tau_ch', tau_c)
+    tau_C            = taxes.get('tau_C', 0.0)
+    tau_CH           = taxes.get('tau_CH', 0.0)
+    tau_CR           = taxes.get('tau_CR', 0.0)
     tau_D_K          = taxes['tau_D_K']
     tau_D_S          = taxes['tau_D_S']
     tau_D_s          = taxes['tau_D_s']  
@@ -446,12 +451,19 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
     T_K_inv = tau_K_inv*(n+delta_K)*K
     T_K     = tau_K*R_K_gross*K
     T_L = (
-          (tau_L_surface+tau_L_value*p_LDV)*L 
+          (tau_L_surface+tau_L_value*p_LDV)*L
         + (tau_l_surface+tau_l_value*p_LDV)*l
         +  tau_LDV_sale*p_LR*n*LDV
         )
     T_L_R = varrho*(tau_LR_surface+tau_LR_value*p_LR)*LR + tau_LR_sale*p_LR*n*LDV
     T_H = tau_H*R_H_gross*h + tau_HI*R_H_gross*H
+    T_C = (
+        varrho * tau_CR * C_R
+        + tau_C * C
+        + omega * tau_c * c
+        + omega * tau_ch * R_H_gross * h
+        + tau_CH * R_H_gross * H
+    )
 
     # inheritance tax
     T_inher = (
@@ -479,9 +491,13 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
 
     # total revenue
     T_total_R = T_L_R + T_inher_R + T_D_R   # in capitalist unit
-    T_total_C = T_Ss_inv+T_K_inv+T_K +T_L+T_H+T_inher+T_D
+    T_total_C = T_Ss_inv + T_K_inv + T_K + T_L + T_H + T_inher + T_D
 
-    T_total = T_total_C + T_total_R
+    T_total = T_total_C + T_total_R + T_C
+
+    workers_cons_tax = omega * tau_c * c + omega * tau_ch * R_H_gross * h
+    R_net_to_workers_total = T_total - workers_cons_tax
+    R_net_to_workers = R_net_to_workers_total / (1 + omega)
     
     
     # national income and GDP
@@ -496,7 +512,16 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
 
     # some marginal benefit and cost expressions
     marg_benef_H = (
-        beta*(dU_dH - LM_C*(tau_HI + aleph*tau_inher_H/rho_H + d_H*tau_D_H/rho_H)*R_H_gross)
+        beta*(
+            dU_dH
+            - LM_C*
+            (
+                (tau_CH + tau_HI)
+                + aleph*tau_inher_H/rho_H
+                + d_H*tau_D_H/rho_H
+            )
+            * R_H_gross
+        )
     )
     marg_benef_h = (
         beta*LM_C*(1-tau_H)*(1 - aleph*tau_inher_h/rho_h - d_h*tau_D_h/rho_h) * R_H_gross
@@ -530,7 +555,7 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
     # BCs
     res[4] = (Y - omega*wage + R_H_gross*h
                 - (n+delta_K)*K - (n+delta_S)*(S+s) - C
-                - n*LDV*p_LR - cost_L1*n*LDV - 1/2*cost_L2*(n*LDV)**2 - T_total_C + T_total/(1+omega))    #  + T_total/(1+omega)
+                - n*LDV*p_LR - cost_L1*n*LDV - 1/2*cost_L2*(n*LDV)**2 - T_total_C + R_net_to_workers)    #  + T_total/(1+omega)
 
     res[5] = (R_R*LR + n*LDV*p_LR/varrho
                 - C_R - T_total_R/varrho)
@@ -538,7 +563,19 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
     res[6] = LDV + varrho*LR - Lbar
 
     # worker
-    res[7] = c + h*R_H_gross/omega - wage - T_total/(1+omega)       # - T_total/(1+omega)
+    worker_outlays = (1 + tau_c) * c + (1 + tau_ch) * (R_H_gross/omega) * h
+    res[7] = worker_outlays - wage - R_net_to_workers       # - T_total/(1+omega)
+
+    res_worker_intraperiod = (
+        (du_dh / (du_dc * R_H_gross)) - ((1 + tau_ch) / (1 + tau_c))
+    )
+
+    tau_CH_implied = (
+        (tau_C / (1 + tau_C)) * (dU_dH / (dU_dC * R_H_gross))
+        if (1 + tau_C) != 0
+        else 0.0
+    )
+    res_tauCH_gap = tau_CH - tau_CH_implied
 
     
     # add weight to these conditions
@@ -625,6 +662,7 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
         'T_L'      : T_L,
         'T_L_R'    : T_L_R,
         'T_H'      : T_H,
+        'T_C'      : T_C,
         'T_inher'  : T_inher,
         'T_inher_R': T_inher_R,
         'T_D'      : T_D,
@@ -632,6 +670,9 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
         'T_total_C' : T_total_C,
         'T_total_R' : T_total_R,
         'T_total'   : T_total,
+        'workers_cons_tax': workers_cons_tax,
+        'R_net_to_workers_total': R_net_to_workers_total,
+        'R_net_to_workers': R_net_to_workers,
         
         # welfare 
         'util_c'   : env.u(c, h/omega),
@@ -658,7 +699,11 @@ def ss_res(params_exog, params_endog, x, taxes, calib, targets, weight):
         'K_Y_ratio': K_Y_ratio,
         'pLDV_pLR_ratio': pLDV_pLR_ratio,
         'LDV_LR_ratio': LDV_LR_ratio,
-        
+        'worker_outlays': worker_outlays,
+        'res_worker_intraperiod': res_worker_intraperiod,
+        'tau_CH_implied': tau_CH_implied,
+        'res_tauCH_gap': res_tauCH_gap,
+
         # loss
         'Eq_loss': np.sqrt(np.sum(np.square(res[:8]/weight))),
         'Tg_loss': np.sqrt(np.sum(np.square(res[8:])))
@@ -841,9 +886,13 @@ def ss_res_uniformval(params_exog, params_endog, x, taxes, calib, targets, weigh
 
     # total revenue
     T_total_R = T_L_R + T_inher_R + T_D_R   # in capitalist unit
-    T_total_C = T_Ss_inv+T_K_inv+T_K +T_L+T_H+T_inher+T_D
+    T_total_C = T_Ss_inv + T_K_inv + T_K + T_L + T_H + T_inher + T_D
 
-    T_total = T_total_C + T_total_R
+    T_total = T_total_C + T_total_R + T_C
+
+    workers_cons_tax = omega * tau_c * c + omega * tau_ch * R_H_gross * h
+    R_net_to_workers_total = T_total - workers_cons_tax
+    R_net_to_workers = R_net_to_workers_total / (1 + omega)
     
     
     # national income and GDP
@@ -858,7 +907,16 @@ def ss_res_uniformval(params_exog, params_endog, x, taxes, calib, targets, weigh
 
     # some marginal benefit and cost expressions
     marg_benef_H = (
-        beta*(dU_dH - LM_C*(tau_HI + aleph*tau_inher_H/rho_H + d_H*tau_D_H/rho_H)*R_H_gross)
+        beta*(
+            dU_dH
+            - LM_C*
+            (
+                (tau_CH + tau_HI)
+                + aleph*tau_inher_H/rho_H
+                + d_H*tau_D_H/rho_H
+            )
+            * R_H_gross
+        )
     )
     marg_benef_h = (
         beta*LM_C*(1-tau_H)*(1 - aleph*tau_inher_h/rho_h - d_h*tau_D_h/rho_h) * R_H_gross
@@ -892,7 +950,7 @@ def ss_res_uniformval(params_exog, params_endog, x, taxes, calib, targets, weigh
     # BCs
     res[4] = (Y - omega*wage + R_H_gross*h
                 - (n+delta_K)*K - (n+delta_S)*(S+s) - C
-                - n*LDV*p_LR - cost_L1*n*LDV - 1/2*(n*LDV)**2*cost_L2 - T_total_C + T_total/(1+omega))    #  + T_total/(1+omega)
+                - n*LDV*p_LR - cost_L1*n*LDV - 1/2*(n*LDV)**2*cost_L2 - T_total_C + R_net_to_workers)    #  + T_total/(1+omega)
 
     res[5] = (R_R*LR + n*LDV*p_LR/varrho
                 - C_R - T_total_R/varrho)
@@ -900,9 +958,21 @@ def ss_res_uniformval(params_exog, params_endog, x, taxes, calib, targets, weigh
     res[6] = LDV + varrho*LR - Lbar
 
     # worker
-    res[7] = c + h*R_H_gross/omega - wage - T_total/(1+omega)       # - T_total/(1+omega)
+    worker_outlays = (1 + tau_c) * c + (1 + tau_ch) * (R_H_gross/omega) * h
+    res[7] = worker_outlays - wage - R_net_to_workers       # - T_total/(1+omega)
 
-    
+    res_worker_intraperiod = (
+        (du_dh / (du_dc * R_H_gross)) - ((1 + tau_ch) / (1 + tau_c))
+    )
+
+    tau_CH_implied = (
+        (tau_C / (1 + tau_C)) * (dU_dH / (dU_dC * R_H_gross))
+        if (1 + tau_C) != 0
+        else 0.0
+    )
+    res_tauCH_gap = tau_CH - tau_CH_implied
+
+
     # add weight to these conditions
     res[:8] = res[:8] * weight
     
@@ -969,6 +1039,7 @@ def ss_res_uniformval(params_exog, params_endog, x, taxes, calib, targets, weigh
         'T_L'      : T_L,
         'T_L_R'    : T_L_R,
         'T_H'      : T_H,
+        'T_C'      : T_C,
         'T_inher'  : T_inher,
         'T_inher_R': T_inher_R,
         'T_D'      : T_D,
@@ -976,6 +1047,9 @@ def ss_res_uniformval(params_exog, params_endog, x, taxes, calib, targets, weigh
         'T_total_C' : T_total_C,
         'T_total_R' : T_total_R,
         'T_total'   : T_total,
+        'workers_cons_tax': workers_cons_tax,
+        'R_net_to_workers_total': R_net_to_workers_total,
+        'R_net_to_workers': R_net_to_workers,
         
         # welfare 
         'util_c'   : env.u(c, h/omega),
@@ -1002,6 +1076,10 @@ def ss_res_uniformval(params_exog, params_endog, x, taxes, calib, targets, weigh
         'K_Y_ratio': K_Y_ratio,
         'pLDV_pLR_ratio': pLDV_pLR_ratio,
         'LDV_LR_ratio': LDV_LR_ratio,
+        'worker_outlays': worker_outlays,
+        'res_worker_intraperiod': res_worker_intraperiod,
+        'tau_CH_implied': tau_CH_implied,
+        'res_tauCH_gap': res_tauCH_gap,
         
         # loss
         'Eq_loss': np.sqrt(np.sum(np.square(res[:8]/weight))),
@@ -1248,6 +1326,20 @@ def ss_res_nonbinding(params_exog, params_endog, x, taxes):
         # + varrho*(tau_LR_0_surface+tau_LR_0_value*p_LR)*LR_0
         + tau_LR_sale*p_LR*n*LDV)
     T_H = tau_H*R_H_gross*h + tau_HI*R_H_gross*H
+    T_C = (
+        varrho * tau_CR * C_R
+        + tau_C * C
+        + omega * tau_c * c
+        + omega * tau_ch * R_H_gross * h
+        + tau_CH * R_H_gross * H
+    )
+    T_C = (
+        varrho * tau_CR * C_R
+        + tau_C * C
+        + omega * tau_c * c
+        + omega * tau_ch * R_H_gross * h
+        + tau_CH * R_H_gross * H
+    )
 
     # inheritance tax
     T_inher = (
@@ -1275,9 +1367,13 @@ def ss_res_nonbinding(params_exog, params_endog, x, taxes):
 
     # total revenue
     T_total_R = T_L_R + T_inher_R + T_D_R   # in capitalist unit
-    T_total_C = T_Ss_inv+T_K_inv+T_K +T_L+T_H+T_inher+T_D
+    T_total_C = T_Ss_inv + T_K_inv + T_K + T_L + T_H + T_inher + T_D
 
-    T_total = T_total_C + T_total_R
+    T_total = T_total_C + T_total_R + T_C
+
+    workers_cons_tax = omega * tau_c * c + omega * tau_ch * R_H_gross * h
+    R_net_to_workers_total = T_total - workers_cons_tax
+    R_net_to_workers = R_net_to_workers_total / (1 + omega)
     
     
     # national income and GDP
@@ -1292,7 +1388,16 @@ def ss_res_nonbinding(params_exog, params_endog, x, taxes):
 
     # some marginal benefit and cost expressions
     marg_benef_H = (
-        beta*(dU_dH - LM_C*(tau_HI + aleph*tau_inher_H/rho_H + d_H*tau_D_H/rho_H)*R_H_gross)
+        beta*(
+            dU_dH
+            - LM_C*
+            (
+                (tau_CH + tau_HI)
+                + aleph*tau_inher_H/rho_H
+                + d_H*tau_D_H/rho_H
+            )
+            * R_H_gross
+        )
     )
     marg_benef_h = (
         beta*LM_C*(1-tau_H)*(1 - aleph*tau_inher_h/rho_h - d_h*tau_D_h/rho_h) * R_H_gross
@@ -1326,7 +1431,7 @@ def ss_res_nonbinding(params_exog, params_endog, x, taxes):
     # BCs
     res[4] = (Y - omega*wage + R_H_gross*h
                 - (n+delta_K)*K - (n+delta_S)*(S+s) - C
-                - n*LDV*p_LR - cost_L1*n*LDV - 1/2*cost_L2*(n*LDV)**2 - T_total_C + T_total/(1+omega))    #  + T_total/(1+omega)
+                - n*LDV*p_LR - cost_L1*n*LDV - 1/2*cost_L2*(n*LDV)**2 - T_total_C + R_net_to_workers)    #  + T_total/(1+omega)
 
     res[5] = (R_R1*LR_1 + R_R0*LR_0 + n*LDV*p_LR/varrho
                 - C_R - T_total_R/varrho)
@@ -1334,8 +1439,20 @@ def ss_res_nonbinding(params_exog, params_endog, x, taxes):
     res[6] = LDV + varrho*LR_1 - kappa/(n+kappa) * Lbar
 
     # worker
-    res[7] = c + h*R_H_gross/omega - wage - T_total/(1 + omega)       # - T_total/(1+omega)
-    
+    worker_outlays = (1 + tau_c) * c + (1 + tau_ch) * (R_H_gross/omega) * h
+    res[7] = worker_outlays - wage - R_net_to_workers       # - T_total/(1+omega)
+
+    res_worker_intraperiod = (
+        (du_dh / (du_dc * R_H_gross)) - ((1 + tau_ch) / (1 + tau_c))
+    )
+
+    tau_CH_implied = (
+        (tau_C / (1 + tau_C)) * (dU_dH / (dU_dC * R_H_gross))
+        if (1 + tau_C) != 0
+        else 0.0
+    )
+    res_tauCH_gap = tau_CH - tau_CH_implied
+
     # -------------------------------------------------------------
     # ------------------- calibration targets ---------------------
     # -------------------------------------------------------------
@@ -1402,6 +1519,7 @@ def ss_res_nonbinding(params_exog, params_endog, x, taxes):
         'T_L'      : T_L,
         'T_L_R'    : T_L_R,
         'T_H'      : T_H,
+        'T_C'      : T_C,
         'T_inher'  : T_inher,
         'T_inher_R': T_inher_R,
         'T_D'      : T_D,
@@ -1409,6 +1527,9 @@ def ss_res_nonbinding(params_exog, params_endog, x, taxes):
         'T_total_C' : T_total_C,
         'T_total_R' : T_total_R,
         'T_total'   : T_total,
+        'workers_cons_tax': workers_cons_tax,
+        'R_net_to_workers_total': R_net_to_workers_total,
+        'R_net_to_workers': R_net_to_workers,
         
         # welfare 
         'util_c'   : env.u(c, h/omega),
@@ -1435,6 +1556,10 @@ def ss_res_nonbinding(params_exog, params_endog, x, taxes):
         'K_Y_ratio': K_Y_ratio,
         'pLDV_pLR_ratio': pLDV_pLR_ratio,
         'LDV_LR_ratio': LDV_LR_ratio,
+        'worker_outlays': worker_outlays,
+        'res_worker_intraperiod': res_worker_intraperiod,
+        'tau_CH_implied': tau_CH_implied,
+        'res_tauCH_gap': res_tauCH_gap,
         
         # leftover land
         'leftover': varrho*LR_1 - n*LDV,
@@ -1636,9 +1761,13 @@ def ss_res_binding(params_exog, params_endog, x, taxes):
 
     # total revenue
     T_total_R = T_L_R + T_inher_R + T_D_R   # in capitalist unit
-    T_total_C = T_Ss_inv+T_K_inv+T_K +T_L+T_H+T_inher+T_D
+    T_total_C = T_Ss_inv + T_K_inv + T_K + T_L + T_H + T_inher + T_D
 
-    T_total = T_total_C + T_total_R
+    T_total = T_total_C + T_total_R + T_C
+
+    workers_cons_tax = omega * tau_c * c + omega * tau_ch * R_H_gross * h
+    R_net_to_workers_total = T_total - workers_cons_tax
+    R_net_to_workers = R_net_to_workers_total / (1 + omega)
     
     
     # national income and GDP
@@ -1653,7 +1782,16 @@ def ss_res_binding(params_exog, params_endog, x, taxes):
 
     # some marginal benefit and cost expressions
     marg_benef_H = (
-        beta*(dU_dH - LM_C*(tau_HI + aleph*tau_inher_H/rho_H + d_H*tau_D_H/rho_H)*R_H_gross)
+        beta*(
+            dU_dH
+            - LM_C*
+            (
+                (tau_CH + tau_HI)
+                + aleph*tau_inher_H/rho_H
+                + d_H*tau_D_H/rho_H
+            )
+            * R_H_gross
+        )
     )
     marg_benef_h = (
         beta*LM_C*(1-tau_H)*(1 - aleph*tau_inher_h/rho_h - d_h*tau_D_h/rho_h) * R_H_gross
@@ -1687,13 +1825,25 @@ def ss_res_binding(params_exog, params_endog, x, taxes):
     # BCs
     res[4] = (Y - omega*wage + R_H_gross*h
                 - (n+delta_K)*K - (n+delta_S)*(S+s) - C
-                - n*LDV*p_LR - cost_L1*n*LDV - 1/2*cost_L2*(n*LDV)**2 - T_total_C + T_total/(1+omega))    #  + T_total/(1+omega)
+                - n*LDV*p_LR - cost_L1*n*LDV - 1/2*cost_L2*(n*LDV)**2 - T_total_C + R_net_to_workers)    #  + T_total/(1+omega)
 
     res[5] = (R_R1*LR_1 + R_R0*LR_0 + n*LDV*p_LR/varrho
                 - C_R - T_total_R/varrho)
 
     # worker
-    res[6] = c + h*R_H_gross/omega - wage - T_total/(1+omega)       # - T_total/(1+omega)
+    worker_outlays = (1 + tau_c) * c + (1 + tau_ch) * (R_H_gross/omega) * h
+    res[6] = worker_outlays - wage - R_net_to_workers       # - T_total/(1+omega)
+
+    res_worker_intraperiod = (
+        (du_dh / (du_dc * R_H_gross)) - ((1 + tau_ch) / (1 + tau_c))
+    )
+
+    tau_CH_implied = (
+        (tau_C / (1 + tau_C)) * (dU_dH / (dU_dC * R_H_gross))
+        if (1 + tau_C) != 0
+        else 0.0
+    )
+    res_tauCH_gap = tau_CH - tau_CH_implied
     
     # multiplier
     res[7] = (eta_b*p_LR_seller + (1-eta_b)*p_LR_buyer - p_LR)      # bargaining
@@ -1766,6 +1916,7 @@ def ss_res_binding(params_exog, params_endog, x, taxes):
         'T_L'      : T_L,
         'T_L_R'    : T_L_R,
         'T_H'      : T_H,
+        'T_C'      : T_C,
         'T_inher'  : T_inher,
         'T_inher_R': T_inher_R,
         'T_D'      : T_D,
@@ -1773,6 +1924,9 @@ def ss_res_binding(params_exog, params_endog, x, taxes):
         'T_total_C' : T_total_C,
         'T_total_R' : T_total_R,
         'T_total'   : T_total,
+        'workers_cons_tax': workers_cons_tax,
+        'R_net_to_workers_total': R_net_to_workers_total,
+        'R_net_to_workers': R_net_to_workers,
         
         # welfare 
         'util_c'   : env.u(c, h/omega),
@@ -1800,6 +1954,10 @@ def ss_res_binding(params_exog, params_endog, x, taxes):
         'K_Y_ratio': K_Y_ratio,
         'pLDV_pLR_ratio': pLDV_pLR_ratio,
         'LDV_LR_ratio': LDV_LR_ratio,
+        'worker_outlays': worker_outlays,
+        'res_worker_intraperiod': res_worker_intraperiod,
+        'tau_CH_implied': tau_CH_implied,
+        'res_tauCH_gap': res_tauCH_gap,
         
         # loss
         'Eq_loss': np.sqrt(np.sum(np.square(res))),

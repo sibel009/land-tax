@@ -5,11 +5,24 @@
 # The codes here compute the initial and terminal steady states and store them in Json
 # The dynamics are solved in Julia script "dynamics.jl".
 
-from model_solver import *
-import numpy as np 
+try:  # pragma: no cover - fallback for direct execution
+    from .model_solver import *
+    from .paths import DYNAMICS_DIR, PARAMS_DIR
+except ImportError:  # pragma: no cover
+    import sys
+    from pathlib import Path
+
+    PACKAGE_ROOT = Path(__file__).resolve().parent
+    sys.path.insert(0, str(PACKAGE_ROOT.parent))
+
+    from land_tax.model_solver import *  # type: ignore
+    from land_tax.paths import DYNAMICS_DIR, PARAMS_DIR  # type: ignore
+import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 import json
+
+DYNAMICS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # set parameters
@@ -44,6 +57,11 @@ taxes_calib = {         # benchmark tax to calibrate on
     'tau_inher_L':      0.0,
     'tau_inher_l':      0.0,
     'tau_inher_LR':     0.0,
+    'tau_c':            0.0,
+    'tau_ch':           0.0,
+    'tau_C':            0.0,
+    'tau_CH':           0.0,
+    'tau_CR':           0.0,
 }
 
 # the all tax set to zero case
@@ -52,7 +70,7 @@ taxes_eq0['tau_K_inv'] = 0.0
 taxes_eq0['tau_K'] = 0.0
 
 # fixed parameters
-with open('ParamDynamics.json') as file:
+with open(PARAMS_DIR / 'ParamDynamics.json') as file:
     params = json.load(file)
     
 params_exog = {key: params[key] for key in [
@@ -98,10 +116,10 @@ terminal_ss_exprmt1 = sol_taxeq0.copy()
 init_ss_exprmt1['K'] = 0.8 * init_ss_exprmt1['K']       # negative shock
 
 # save
-with open('dynamics/exprmt1_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt1_init.json', 'w') as file:
     json.dump(init_ss_exprmt1, file)
 
-with open('dynamics/exprmt1_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt1_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt1, file)
     
 
@@ -122,10 +140,10 @@ terminal_ss_exprmt2 = solve_ss(params_exog, params_endog, taxes_exprmt2_end, ini
 
 
 # save
-with open('dynamics/exprmt2_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt2_init.json', 'w') as file:
     json.dump(init_ss_exprmt2, file)
 
-with open('dynamics/exprmt2_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt2_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt2, file)
 
 
@@ -139,7 +157,7 @@ with open('dynamics/exprmt2_terminal.json', 'w') as file:
 init_ss_exprmt3 = sol_taxeq0.copy()
 
 # save
-with open('dynamics/exprmt3_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt3_init.json', 'w') as file:
     json.dump(init_ss_exprmt3, file)
 
 
@@ -152,7 +170,7 @@ taxes_exprmt3_end['tau_LR_surface'] = 0.02
 terminal_ss_exprmt3 = solve_ss(params_exog, params_endog, taxes_exprmt3_end, init_guess)
 
 # save
-with open('dynamics/exprmt3_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt3_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt3, file)
 
 
@@ -161,11 +179,11 @@ with open('dynamics/exprmt3_terminal.json', 'w') as file:
 
 # same initial and terminal condition as before
 # save
-with open('dynamics/exprmt4_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt4_init.json', 'w') as file:
     json.dump(init_ss_exprmt3, file)
 
 # save
-with open('dynamics/exprmt4_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt4_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt3, file)
     
     
@@ -174,11 +192,11 @@ with open('dynamics/exprmt4_terminal.json', 'w') as file:
 
 # same initial and terminal condition as before
 # save
-with open('dynamics/exprmt5_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt5_init.json', 'w') as file:
     json.dump(init_ss_exprmt3, file)
 
 # save
-with open('dynamics/exprmt5_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt5_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt3, file)
     
     
@@ -187,11 +205,11 @@ with open('dynamics/exprmt5_terminal.json', 'w') as file:
 
 # same initial and terminal condition as before
 # save
-with open('dynamics/exprmt6_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt6_init.json', 'w') as file:
     json.dump(init_ss_exprmt3, file)
 
 # save
-with open('dynamics/exprmt6_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt6_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt3, file)
     
 
@@ -204,7 +222,7 @@ with open('dynamics/exprmt6_terminal.json', 'w') as file:
 init_ss_exprmt7 = sol_taxeq0.copy()
 
 # save
-with open('dynamics/exprmt7_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt7_init.json', 'w') as file:
     json.dump(init_ss_exprmt7, file)
 
 
@@ -217,7 +235,7 @@ taxes_exprmt7_end['tau_LR_value'] = 0.02
 terminal_ss_exprmt7 = solve_ss(params_exog, params_endog, taxes_exprmt7_end, init_guess)
 
 # save
-with open('dynamics/exprmt7_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt7_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt7, file)
 
 
@@ -226,11 +244,11 @@ with open('dynamics/exprmt7_terminal.json', 'w') as file:
 
 # same initial and terminal condition as before
 # save
-with open('dynamics/exprmt8_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt8_init.json', 'w') as file:
     json.dump(init_ss_exprmt7, file)
 
 # save
-with open('dynamics/exprmt8_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt8_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt7, file)
     
     
@@ -239,11 +257,11 @@ with open('dynamics/exprmt8_terminal.json', 'w') as file:
 
 # same initial and terminal condition as before
 # save
-with open('dynamics/exprmt9_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt9_init.json', 'w') as file:
     json.dump(init_ss_exprmt7, file)
 
 # save
-with open('dynamics/exprmt9_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt9_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt7, file)
     
     
@@ -252,11 +270,11 @@ with open('dynamics/exprmt9_terminal.json', 'w') as file:
 
 # same initial and terminal condition as before
 # save
-with open('dynamics/exprmt10_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt10_init.json', 'w') as file:
     json.dump(init_ss_exprmt7, file)
 
 # save
-with open('dynamics/exprmt10_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt10_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt7, file)
     
     
@@ -270,7 +288,7 @@ with open('dynamics/exprmt10_terminal.json', 'w') as file:
 init_ss_exprmt11 = sol_taxeq0.copy()
 
 # save
-with open('dynamics/exprmt11_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt11_init.json', 'w') as file:
     json.dump(init_ss_exprmt11, file)
 
 
@@ -281,7 +299,7 @@ taxes_exprmt11_end['tau_LDV_sale'] = 0.02
 terminal_ss_exprmt11 = solve_ss(params_exog, params_endog, taxes_exprmt11_end, init_guess)
 
 # save
-with open('dynamics/exprmt11_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt11_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt11, file)
 
 
@@ -296,10 +314,10 @@ with open('dynamics/exprmt11_terminal.json', 'w') as file:
 init_ss_exprmt12 = sol_taxeq0.copy()
 
 # save
-with open('dynamics/exprmt12_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt12_init.json', 'w') as file:
     json.dump(init_ss_exprmt12, file)
 # save
-with open('dynamics/exprmt12_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt12_terminal.json', 'w') as file:
     json.dump(init_ss_exprmt12, file)
 
 
@@ -315,7 +333,7 @@ with open('dynamics/exprmt12_terminal.json', 'w') as file:
 init_ss_exprmt13 = sol_taxeq0.copy()
 
 # save
-with open('dynamics/exprmt13_init.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt13_init.json', 'w') as file:
     json.dump(init_ss_exprmt13, file)
     
 # compute steady state 2
@@ -325,5 +343,5 @@ taxes_exprmt13_end['tau_LR_surface'] = 0.1
 terminal_ss_exprmt13 = solve_ss(params_exog, params_endog, taxes_exprmt13_end, init_guess)
 
 # save
-with open('dynamics/exprmt13_terminal.json', 'w') as file:
+with open(DYNAMICS_DIR / 'exprmt13_terminal.json', 'w') as file:
     json.dump(terminal_ss_exprmt13, file)
